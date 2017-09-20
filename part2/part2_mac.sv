@@ -14,22 +14,32 @@ module part2_mac (
 );
     logic signed [ 7:0] a_int;
     logic signed [ 7:0] b_int;
-    logic signed [15:0] f_int;
-    logic valid_int;
+    logic signed [15:0] c_int;
+    logic signed [15:0] d_int;
+    logic overflow_int;
+    logic enable_f;
+
+    assign c_int = (a_int * b_int);
+    assign d_int = f + c_int;
+    assign overflow_int = (f > 0 && c_int > 0 && d_int < 0) ||
+                          (f < 0 && c_int < 0 && d_int > 0);
 
     //--------------------------------------------------//
     // Flopping the a, b and valid_in input.
     //--------------------------------------------------//
     always_ff @(posedge clk)
         if (reset) begin
-            a_int <= 8'd0;
-            b_int <= 8'd0;
-            valid_int <= 1'b0;
+            a_int    <= 8'd0;
+            b_int    <= 8'd0;
+            enable_f <= 1'b0;
+        end
+        else if (valid_in) begin
+            a_int    <= a;
+            b_int    <= b;
+            enable_f <= valid_in;
         end
         else begin
-            a_int <= a;
-            b_int <= b;
-            valid_int <= valid_in;
+            enable_f <= 1'b0;
         end
 
     //--------------------------------------------------//
@@ -37,11 +47,11 @@ module part2_mac (
     //--------------------------------------------------//
     always_ff @(posedge clk)
         if (reset) begin
-            f <= 16'd0;
+            f         <= 16'd0;
             valid_out <= 1'b0; 
         end
-        else if (valid_int) begin
-            f <= f + (a_int * b_int);
+        else if (enable_f) begin
+            f         <= d_int;
             valid_out <= 1'b1;
         end
         else begin
@@ -51,8 +61,11 @@ module part2_mac (
     //--------------------------------------------------//
     // Overflow detection.
     //--------------------------------------------------//
-    assign overflow = (a > 0 && b > 0 && f < 0) ||
-                      (a < 0 && b < 0 && f > 0);
+    always_ff @(posedge clk)
+        if (reset)
+            overflow <= 1'b0; 
+        else if (overflow_int && enable_f)
+            overflow <= 1'b1;
 
 endmodule
 //end of file.

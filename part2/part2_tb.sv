@@ -2,23 +2,54 @@
 class mac_model;
     rand bit signed [ 7:0] a;
     rand bit signed [ 7:0] b;
-    rand bit        valid;
+    rand bit               valid;
+    bit signed      [ 7:0] x[*];
+    bit signed      [ 7:0] y[*];
+    bit signed      [15:0] f[*];
+    bit                    overflow;
+    logic signed    [15:0] f_int;
+    logic signed    [15:0] g_int;
+
     static int      idx = 0;
-    bit signed     [ 7:0] x[*];
-    bit signed     [ 7:0] y[*];
-    bit signed     [15:0] f[*];
     
-    constraint a_con {a >= 8'h00; a <= 8'h2f;}
-    constraint b_con {a >= 8'h00; a <= 8'h2f;}
+    constraint a_con {a >= 8'h00; a <= 8'hff;}
+    constraint b_con {b >= 8'h00; b <= 8'hff;}
     constraint valid_con {valid dist{0:/1, 1:/1};}
 
     function void post_randomize();
     begin
-        if (valid == 1) begin
-            x[idx] = a;
-            y[idx] = b;
-            f[idx] = (idx == 0) ? (a * b) : (f[idx-1] + (a * b));
-            idx++;
+        if (idx == 0) begin
+            f_int    = 0;
+            overflow = 0;
+        end
+        else begin
+            g_int    = (a * b);
+            f_int    = g_int + f[idx-1]; 
+            overflow = ((f[idx-1] > 0 && g_int > 0 && f_int < 0) ||
+                        (f[idx-1] < 0 && g_int < 0 && f_int > 0));
+            //if (valid) $display("a: %d, b: %d, Gint: %d, F_prev: %d, Fint: %d",a, b, g_int, f[idx-1], f_int);
+        end
+
+        if (valid) begin
+            if (overflow) begin
+                $display("Overflow Injected - idx: %d, a: %d, b: %d, f_prev: %d", idx, a, b, f[idx-1]);
+                f[idx] = f[idx-1] + (a * b);;
+                x[idx] = a;
+                y[idx] = b;
+                idx = 0;
+            end
+            else if (idx == 0) begin
+                x[idx] = a;
+                y[idx] = b;
+                f[idx] = (a * b); 
+                idx++;
+            end
+            else begin
+                x[idx] = a;
+                y[idx] = b;
+                f[idx] = f[idx-1] + (a * b);
+                idx++;
+            end
         end
     end
     endfunction
@@ -30,6 +61,7 @@ module tb_part2_mac();
    logic signed [7:0] a, b;
    logic signed [15:0] f;
    int idx = 0;
+   int idy = 0;
 
    part2_mac dut(clk, reset, a, b, valid_in, f, valid_out, overflow);
 
@@ -45,36 +77,55 @@ module tb_part2_mac();
       {a, b} = {8'b0,8'b0};
       valid_in = 0;
 
-      @(posedge clk);
-      #1; // After 1 posedge
-      reset = 0; a = 1; b = 1; valid_in = 0;
-
-      for (int i = 0; i < 30; i++) begin
+      for (int i = 0; i < 2000; i++) begin
           @(posedge clk);
           #1;
-          mac_m.randomize();
-          a = mac_m.a;
-          b = mac_m.b;
-          valid_in = mac_m.valid;
+          if (reset) begin
+             $display("Reseting DUT!");
+             reset = 0; 
+             a = 1; 
+             b = 1; 
+             valid_in = 0;
+             idy = 0;
+          end
+          if (overflow) begin
+             $display("Overflow Dectected By DUT!");
+             reset = 1;
+             {a, b} = {8'b0, 8'b0};
+             valid_in = 0;
+          end
+          else begin
+             mac_m.randomize();
+             valid_in = mac_m.valid;
+             a   = (valid_in) ? mac_m.x[idy] : mac_m.a;
+             b   = (valid_in) ? mac_m.y[idy] : mac_m.b;
+             idy = (valid_in) ? idy+1 : idy;
+          end
       end
 
       @(posedge clk);
       #1;
       valid_in = 1'b0;
 
+      $display("!!!Verification PASSED!!!");
+
       #100 $finish();
 
    end // initial begin
 
    always @(posedge clk) begin
-       if(valid_out) begin
+       if(valid_out && !reset) begin
            if(f == mac_m.f[idx])
-               $display("Validation PASSED - a: %d, b: %d, f: %d, f_exp: %d", mac_m.x[idx], mac_m.y[idx], f, mac_m.f[idx]);
+               $display("Validation PASSED - idx: %d, a: %d, b: %d, f: %d, f_exp: %d", idx,mac_m.x[idx], mac_m.y[idx], f, mac_m.f[idx]);
            else begin
-               $display("Validation FAILED - a: %d, b: %d, f: %d, f_exp: %d", mac_m.x[idx], mac_m.y[idx], f, mac_m.f[idx]);
-               $finsih();
+               $display("Validation FAILED - idx: %d, a: %d, b: %d, f: %d, f_exp: %d", idx, mac_m.x[idx], mac_m.y[idx], f, mac_m.f[idx]);
+               $display("!!!Verification FAILED!!!");
+               $finish();
            end
            idx++;
+       end
+       else if (reset) begin
+           idx = 0;
        end
    end
 
