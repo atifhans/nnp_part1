@@ -40,6 +40,8 @@ class mac_model;
                 y[idx+1] = b;
                 x[idx+2] = a;
                 y[idx+2] = b;
+                x[idx+3] = a;
+                y[idx+3] = b;
                 idx = 0;
             end
             else if (idx == 0) begin
@@ -59,7 +61,7 @@ class mac_model;
     endfunction
 endclass
 
-module tb_part2_mac();
+module tb_part3_mac();
 
    logic clk, reset, valid_in, valid_out, overflow;
    logic signed [7:0] a, b;
@@ -67,7 +69,7 @@ module tb_part2_mac();
    int idx = 0;
    int idy = 0;
 
-   part2_mac dut(.*);
+   part3_mac dut(.*);
 
    initial clk = 0;
    always #5 clk = ~clk;

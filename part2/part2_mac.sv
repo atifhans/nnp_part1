@@ -21,8 +21,11 @@ module part2_mac (
 
     assign c_int = (a_int * b_int);
     assign d_int = f + c_int;
-    assign overflow_int = (f > 0 && c_int > 0 && d_int < 0) ||
-                          (f < 0 && c_int < 0 && d_int > 0);
+    //assign overflow_int = (f > 0 && c_int > 0 && d_int < 0) ||
+    //                      (f < 0 && c_int < 0 && d_int > 0);
+    //Simple overflow detection logic
+    assign overflow_int = ( f[15] &  c_int[15] & !d_int[15]) |
+                          (!f[15] & !c_int[15] &  d_int[15]);
 
     //--------------------------------------------------//
     // Flopping the a, b and valid_in input.
